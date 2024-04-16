@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AGENDA MARCE SENA</title>
+    <style>
+        body {
+            background-image: url('https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcR2aSo5qf5JE7N-4v-_fpc3u_z_ClRLP-PCpS-0r3ZO_A&s');
+            background-size: cover;
+            font-family: Arial, sans-serif;
+            color: black;
+        }
+
+        #hora-actual {
+            font-size: 20px;
+            margin-bottom: 20px;
+        }
+
+        .tarea {
+            margin-bottom: 10px;
+            padding: 5px;
+            border: 1px solid #ccc;
+            background-color: #f9f9f9;
+            position: relative;
+            list-style-type: none;
+            color: black;
+        }
+
+        .tarea-vencida {
+            background-color: #FFCCCC;
+            animation: parpadeoTarea 1s infinite alternate;
+        }
+
+        .tarea-no-vencida {
+            background-color: #CCFFCC;
+            color: black;
+        }
+
+        @keyframes parpadeoTarea {
+            0% {
+                opacity: 1;
+            }
+            100% {
+                opacity: 0.5;
+            }
+        }
+
+        .tareas-propias {
+            float: left;
+            width: 50%;
+        }
+
+        .tareas-jefe {
+            float: right;
+            width: 50%;
+        }
+
+        .eliminar-tarea,
+        .editar-tarea,
+        .editar-hora {
+            position: absolute;
+            cursor: pointer;
+        }
+
+        .eliminar-tarea {
+            right: 5px;
+            top: 5px;
+        }
+
+        .editar-tarea {
+            right: 80px;
+            top: 5px;
+        }
+
+        .editar-hora {
+            right: 155px;
+            top: 5px;
+        }
+    </style>
+</head>
+<body>
+    <h1>AGENDA MARCE SENA</h1>
+    
+    <div id="fecha-hora">
+        <p id="hora-actual"></p>
+    </div>
+
+    <div id="formulario">
+        <input type="text" id="input-tarea" placeholder="Agregar nueva tarea">
+        <input type="datetime-local" id="input-fecha-hora">
+        <label for="tipo-tarea">Tipo de Tarea:</label>
+        <select id="tipo-tarea">
+            <option value="propia">Propia</option>
+            <option value="jefe">Del Jefe</option>
+        </select>
+        <button id="btn-agregar">Agregar tarea</button>
+    </div>
+
+    <div class="tareas-propias">
+        <h2>Tareas Propias</h2>
+        <ul id="lista-tareas-propias"></ul>
+    </div>
+
+    <div class="tareas-jefe">
+        <h2>Tareas del Jefe</h2>
+        <ul id="lista-tareas-jefe"></ul>
+    </div>
+
+    <audio id="audio-recordatorio" src="https://www.dropbox.com/scl/fi/0f6n38ehndemelcl3p1e9/recordatorio.mp3?rlkey=eferd4ww8njuzi63xgqq1j8k9&dl=0" preload="auto"></audio>
+
+    <script>
+        // Arreglo para almacenar las tareas
+        let tareas = [];
+
+        // Función para reproducir el sonido del recordatorio
+        function reproducirRecordatorio() {
+            const audioRecordatorio = document.getElementById('audio-recordatorio');
+            audioRecordatorio.play();
+        }
+
+        // Función para mostrar la fecha y hora actual
+        function mostrarFechaHoraActual() {
+            const ahora = new Date();
+            const opcionesFechaHora = { 
+                weekday: 'long', 
+                year: 'numeric', 
+                month: 'long', 
+                day: 'numeric', 
+                hour: 'numeric', 
+                minute: 'numeric', 
+                second: 'numeric',
+                hour12: true // Formato de 12 horas
+            };
+            const fechaHoraActual = ahora.toLocaleDateString('es-ES', opcionesFechaHora);
+            document.getElementById('hora-actual').textContent = `Fecha y hora actual: ${fechaHoraActual}`;
+
+            // Marcar tareas como vencidas si es necesario
+            tareas.forEach(tarea => {
+                if (esTareaVencida(tarea)) {
+                    const elementoTarea = document.getElementById(tarea.id);
+                    if (elementoTarea) {
+                        elementoTarea.classList.add('tarea-vencida');
+                    }
+                }
+            });
+        }
+
+        // Función para agregar una nueva tarea
+        function agregarTarea() {
+            const inputTarea = document.getElementById('input-tarea').value;
+            const inputFechaHora = new Date(document.getElementById('input-fecha-hora').value);
+            const tipoTarea = document.getElementById('tipo-tarea').value;
+            
+            if (inputTarea.trim() !== '' && !isNaN(inputFechaHora.getTime())) {
+                const nuevaTarea = {
+                    id: Date.now(), // Generar un ID único para la tarea
+                    descripcion: inputTarea,
+                    fechaHora: inputFechaHora,
+                    tipo: tipoTarea
+                };
+                tareas.push(nuevaTarea);
+                mostrarTareas();
+                programarRecordatorio(nuevaTarea);
+                // Limpiar campos después de agregar tarea
+                document.getElementById('input-tarea').value = '';
+                document.getElementById('input-fecha-hora').value = '';
+            } else {
+                alert('Por favor, ingrese una tarea y una fecha válida.');
+            }
+        }
+
+        // Función para mostrar las tareas en la lista
+        function mostrarTareas() {
+            const listaTareasPropias = document.getElementById('lista-tareas-propias');
+            const listaTareasJefe = document.getElementById('lista-tareas-jefe');
+            listaTareasPropias.innerHTML = '';
+            listaTareasJefe.innerHTML = '';
+
+            tareas.forEach(tarea => {
+                const elementoTarea = document.createElement('li');
+                const descripcionTarea = document.createElement('span');
+                descripcionTarea.textContent = `${tarea.descripcion} - ${formatoFechaHora(tarea.fechaHora)}`;
+                elementoTarea.appendChild(descripcionTarea);
+                elementoTarea.classList.add('tarea');
+                elementoTarea.id = tarea.id;
+                if (tarea.tipo === 'propia') {
+                    listaTareasPropias.appendChild(elementoTarea);
+                } else {
+                    listaTareasJefe.appendChild(elementoTarea);
+                }
+                if (esTareaVencida(tarea)) {
+                    elementoTarea.classList.add('tarea-vencida');
+                } else {
+                    const ahora = new Date();
+                    const diferenciaTiempo = tarea.fechaHora.getTime() - ahora.getTime();
+                    if (diferenciaTiempo <= (5 * 60 * 1000) && diferenciaTiempo > 0) {
+                        elementoTarea.classList.add('tarea-no-vencida-parpadeo');
+                    } else {
+                        elementoTarea.classList.add('tarea-no-vencida');
+                    }
+                }
+                // Agregar botones de eliminar, editar tarea y editar hora
+                const botonEliminar = document.createElement('button');
+                botonEliminar.textContent = 'Eliminar';
+                botonEliminar.classList.add('eliminar-tarea');
+                botonEliminar.addEventListener('click', () => eliminarTarea(tarea.id));
+                elementoTarea.appendChild(botonEliminar);
+
+                const botonEditar = document.createElement('button');
+                botonEditar.textContent = 'Editar';
+                botonEditar.classList.add('editar-tarea');
+                botonEditar.addEventListener('click', () => editarTarea(tarea.id));
+                elementoTarea.appendChild(botonEditar);
+
+                const botonEditarHora = document.createElement('button');
+                botonEditarHora.textContent = 'Editar Hora';
+                botonEditarHora.classList.add('editar-hora');
+                botonEditarHora.addEventListener('click', () => editarHora(tarea.id));
+                elementoTarea.appendChild(botonEditarHora);
+            });
+        }
+
+        // Función para eliminar una tarea
+        function eliminarTarea(idTarea) {
+            tareas = tareas.filter(tarea => tarea.id !== idTarea);
+            mostrarTareas();
+        }
+
+        // Función para editar una tarea
+        function editarTarea(idTarea) {
+            const nuevaDescripcion = prompt('Ingrese la nueva descripción de la tarea:');
+            if (nuevaDescripcion !== null) {
+                const tareaEditada = tareas.find(tarea => tarea.id === idTarea);
+                tareaEditada.descripcion = nuevaDescripcion;
+                mostrarTareas();
+            }
+        }
+
+        // Función para editar la hora de una tarea
+        function editarHora(idTarea) {
+            const tareaEditada = tareas.find(tarea => tarea.id === idTarea);
+            const nuevaHora = prompt('Ingrese la nueva hora (en formato HH:mm AM/PM):');
+            if (nuevaHora !== null) {
+                const [hours, minutes, ampm] = nuevaHora.split(/:|\s/);
+                if (!isNaN(hours) && !isNaN(minutes) && (ampm.toUpperCase() === 'AM' || ampm.toUpperCase() === 'PM')) {
+                    let hour = parseInt(hours, 10);
+                    const minute = parseInt(minutes, 10);
+                    if (ampm.toUpperCase() === 'PM' && hour < 12) {
+                        hour += 12;
+                    } else if (ampm.toUpperCase() === 'AM' && hour === 12) {
+                        hour = 0;
+                    }
+                    tareaEditada.fechaHora.setHours(hour, minute);
+                    mostrarTareas();
+                } else {
+                    alert('Por favor, ingrese una hora válida en formato HH:mm AM/PM.');
+                }
+            }
+        }
+
+        // Función para comprobar si una tarea está vencida
+        function esTareaVencida(tarea) {
+            const ahora = new Date();
+            return tarea.fechaHora <= ahora;
+        }
+
+        // Función para formatear la fecha y hora
+        function formatoFechaHora(fechaHora) {
+            const opcionesFechaHora = { 
+                weekday: 'long', 
+                year: 'numeric', 
+                month: 'long', 
+                day: 'numeric', 
+                hour: 'numeric', 
+                minute: 'numeric', 
+                second: 'numeric',
+                hour12: true // Formato de 12 horas
+            };
+            return fechaHora.toLocaleDateString('es-ES', opcionesFechaHora);
+        }
+
+        // Función para programar recordatorio
+        function programarRecordatorio(tarea) {
+            const ahora = new Date();
+            const diferenciaTiempo = tarea.fechaHora.getTime() - ahora.getTime();
+            
+            if (diferenciaTiempo > 0) {
+                setTimeout(() => {
+                    reproducirRecordatorio();
+                    alert(`¡Recordatorio! La tarea "${tarea.descripcion}" está por comenzar.`);
+                }, diferenciaTiempo - (5 * 60 * 1000)); // Mostrar alerta 5 minutos antes de la tarea
+            }
+        }
+
+        // Mostrar fecha y hora actual al cargar la página
+        mostrarFechaHoraActual();
+
+        // Actualizar fecha y hora actual cada segundo
+        setInterval(mostrarFechaHoraActual, 1000);
+
+        // Asignar evento al botón para agregar tarea
+        document.getElementById('btn-agregar').addEventListener('click', agregarTarea);
+    </script>
+</body>
+</html>
+
+
+
